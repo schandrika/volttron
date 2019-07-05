@@ -323,9 +323,11 @@ class DbDriver(object):
         :return: id of the topic inserted if insert was successful.
                  Raises exception if unable to connect to database
         """
+        last_id = None
         with closing(self.cursor()) as cursor:
             cursor.execute(self.insert_topic_query(), (topic,))
-            return cursor.lastrowid
+            last_id = cursor.lastrowid
+        return last_id
 
     def update_topic(self, topic, topic_id):
         """
@@ -363,10 +365,12 @@ class DbDriver(object):
         :return: id of the topic inserted if insert was successful.
                  Raises exception if unable to connect to database
         """
+        last_id = None
         with closing(self.cursor()) as cursor:
             cursor.execute(self.insert_agg_topic_stmt(),
                            (topic, agg_type, agg_time_period))
-            return cursor.lastrowid
+            last_id = cursor.lastrowid
+        return last_id
 
     def update_agg_topic(self, agg_id, agg_topic_name):
         """
@@ -441,7 +445,17 @@ class DbDriver(object):
         """
         if not args:
             args = ()
-        cursor = self.cursor()
+        # cursor = None
+        # if fetch_all:
+        #     cursor = self.cursor()
+        # else:
+        # create a new db connection and create cursor. This is
+        # to avoid "No result sets to fetch from" error when
+        # more than one cursor from the same connection object
+        # is used to read different results in parallel
+        # https://stackoverflow.com/questions/22921181/python-mysql-connector-executing-second-sql-statement-within-cursor-loop
+        conn = self.__connect()
+        cursor = conn.cursor()
         try:
             cursor.execute(query, args)
         except Exception:
@@ -449,8 +463,10 @@ class DbDriver(object):
             raise
         if fetch_all:
             with closing(cursor):
-                return cursor.fetchall()
-        return cursor
+                result = cursor.fetchall()
+            conn.close()
+            return result
+        return cursor, conn
 
     def execute_stmt(self, stmt, args=None, commit=False):
         """
@@ -464,11 +480,13 @@ class DbDriver(object):
         """
         if args is None:
             args = ()
+        row_count = 0
         with closing(self.cursor()) as cursor:
             cursor.execute(stmt, args)
             if commit:
                 self.commit()
-            return cursor.rowcount
+            row_count = cursor.rowcount
+        return row_count
 
     def execute_many(self, stmt, args, commit=False):
         """
@@ -480,11 +498,13 @@ class DbDriver(object):
         False
         :return: count of the number of affected rows
         """
+        row_count = 0
         with closing(self.cursor()) as cursor:
             cursor.executemany(stmt, args)
             if commit:
                 self.commit()
-            return cursor.rowcount
+            row_count = cursor.rowcount
+        return row_count
 
     @abstractmethod
     def query(self, topic_ids, id_name_map, start=None, end=None,

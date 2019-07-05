@@ -278,7 +278,7 @@ class MySqlFuncts(DbDriver):
             _log.debug("Real Query: " + real_query)
             _log.debug("args: " + str(args))
 
-            cursor = self.select(real_query, args, fetch_all=False)
+            cursor, conn = self.select(real_query, args, fetch_all=False)
             if cursor:
                 for _id, ts, value in cursor:
                     values[id_name_map[topic_id]].append(
@@ -287,6 +287,8 @@ class MySqlFuncts(DbDriver):
 
             if cursor is not None:
                 cursor.close()
+            if conn is not None:
+                conn.close()
         return values
 
     def insert_meta_query(self):

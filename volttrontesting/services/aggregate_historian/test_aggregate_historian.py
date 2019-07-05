@@ -32,9 +32,7 @@ except:
 
 try:
     import pymongo
-    # Ignore mongo test for now.
-    # Mongo fails on rabbitmq branch with gevent Loop Exception
-    HAS_PYMONGO = False
+    HAS_PYMONGO = True
 except:
     HAS_PYMONGO = False
 
@@ -165,6 +163,7 @@ def setup_mysql(connection_params, table_names):
             else:
                 raise
     db_connection.commit()
+    cursor.close()
     return db_connection
 
 
@@ -214,11 +213,11 @@ def cleanup_sql(db_connection, truncate_tables):
     for table in truncate_tables:
         cursor.execute("DELETE FROM " + table)
     db_connection.commit()
+    cursor.close()
 
 
 def cleanup_sqlite(db_connection, truncate_tables):
     cleanup_sql(db_connection, truncate_tables)
-    pass
 
 
 def cleanup_mysql(db_connection, truncate_tables):
@@ -344,10 +343,10 @@ def query_agent(request, volttron_instance):
 @pytest.fixture(scope="module",
                 params=[
                     mysql_skipif(mysql_aggregator),
-                    sqlite_aggregator,
-                    pymongo_skipif(mongo_aggregator),
-                    postgresql_skipif(postgresql_aggregator),
-                    redshift_skipif(redshift_aggregator),
+                    # sqlite_aggregator,
+                    # pymongo_skipif(mongo_aggregator),
+                    # postgresql_skipif(postgresql_aggregator),
+                    # redshift_skipif(redshift_aggregator),
                 ])
 def aggregate_agent(request, volttron_instance):
     global db_connection, table_names, connection_type
@@ -558,7 +557,7 @@ def test_single_topic_pattern(aggregate_agent, query_agent):
     finally:
         cleanup(aggregate_agent['connection']['type'], ['sum_1m'])
 
-
+@pytest.mark.dev
 @pytest.mark.timeout(400)
 @pytest.mark.aggregator
 def test_single_topic(aggregate_agent, query_agent):
@@ -572,7 +571,6 @@ def test_single_topic(aggregate_agent, query_agent):
     4. Do an rpc call to historian to verify data
 
     Expected result:
-    1. Aggregate data should be computed for both 2m and 3m intervals and
     for both the configured points.
     2. timestamp for both points within a single aggregation group should be
     time synchronized.
