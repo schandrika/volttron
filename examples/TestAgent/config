@@ -1,0 +1,4 @@
+{
+    "output": "/home/volttron/test_agent_output",
+    "historian": "sqlhistorianagent-3.7.0_1"
+}
