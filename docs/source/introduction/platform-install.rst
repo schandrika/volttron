@@ -194,8 +194,6 @@ following are supported:
 
 *   `debian bionic` (for Ubuntu 18.04)
 
-*   `debian xenial` (for Ubuntu 16.04 or  Linux Mint 18.04)
-
 *   `debian stretch` (for Debian Stretch)
 
 *   `debian buster` (for Debian Buster)

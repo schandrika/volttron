@@ -80,10 +80,6 @@ If you are running an Debian or CentOS system, you can install the RabbitMQ depe
 
 -   `debian bionic` (for Ubuntu 18.04)
 
--   `debian xenial` (for Ubuntu 16.04)
-
--   `debian xenial` (for Linux Mint 18.04)
-
 -   `debian stretch` (for Debian Stretch)
 
 -   `debian buster` (for Debian Buster)
@@ -93,7 +89,7 @@ If you are running an Debian or CentOS system, you can install the RabbitMQ depe
 Example command:
 
 ```sh
-./scripts/rabbit_dependencies.sh debian xenial
+./scripts/rabbit_dependencies.sh debian bionic
 ```
 
 ###### Alternatively
