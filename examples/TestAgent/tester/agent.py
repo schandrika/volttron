@@ -87,20 +87,6 @@ class Tester(Agent):
         self.historian_vip = historian_vip
         self.output_path = output_path
 
-
-
-    def _create_subscriptions(self, topic):
-        # Unsubscribe from everything.
-        self.vip.pubsub.unsubscribe("pubsub", None, None)
-
-        self.vip.pubsub.subscribe(peer='pubsub',
-                                  prefix=topic,
-                                  callback=self._handle_publish)
-
-    def _handle_publish(self, peer, sender, bus, topic, headers,
-                                message):
-        pass
-
     @Core.receiver("onstart")
     def onstart(self, sender, **kwargs):
         """
@@ -111,10 +97,6 @@ class Tester(Agent):
 
         Usually not needed if using the configuration store.
         """
-        # Example publish to pubsub
-        #self.vip.pubsub.publish('pubsub', "some/random/topic", message="HI!")
-        # Example RPC call
-        #self.vip.rpc.call("some_agent", "some_method", arg1, arg2)
 
         result1 = self.vip.rpc.call(
             self.historian_vip,
