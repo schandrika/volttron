@@ -28,7 +28,7 @@ def tester(config_path, **kwargs):
     """
     try:
         config = utils.load_config(config_path)
-    except StandardError:
+    except Exception:
         config = {}
 
     if not config:
@@ -45,7 +45,9 @@ class Tester(Agent):
     Document agent constructor here.
     """
 
-    def __init__(self, historian_vip="platform.historian", output_path="historian_output",
+    def __init__(self,
+                 historian_vip="platform.historian",
+                 output_path="historian_output",
                  **kwargs):
         super(Tester, self).__init__(**kwargs)
         _log.debug("vip_identity: " + self.core.identity)
@@ -114,14 +116,17 @@ class Tester(Agent):
         # Example RPC call
         #self.vip.rpc.call("some_agent", "some_method", arg1, arg2)
 
-        result1 = self.vip.rpc.call(self.historian_vip, "get_topics_by_pattern",
-                                    ".*OutsideAirTemperature.*").get(timeout=10)
+        result1 = self.vip.rpc.call(
+            self.historian_vip,
+            "get_topics_by_pattern",
+            ".*OutsideAirTemperature.*").get(timeout=10)
 
-        result2 = self.vip.rpc.call(self.historian_vip,
-                                    "query",
-                                    topic="fake-campus/fake-building/fake-device/EKG",
-                                    count=5,
-                                    order="FIRST_TO_LAST").get(timeout=10)
+        result2 = self.vip.rpc.call(
+            self.historian_vip,
+            "query",
+            topic="fake-campus/fake-building/fake-device/EKG",
+            count=5,
+            order="FIRST_TO_LAST").get(timeout=10)
 
         # pretty print the result to file
         with open(self.output_path, 'w') as out:
