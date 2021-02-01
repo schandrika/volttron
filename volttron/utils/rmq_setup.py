@@ -928,7 +928,14 @@ def prompt_upstream_servers(vhome):
         import time
         time.sleep(2)
         upstream_servers[host]['federation-user'] = instance_name + "." + upstream_user
-        upstream_servers[host]['certificates'] = _prompt_csr_request(upstream_user, host, 'federation')
+        cert_config = _prompt_csr_request(upstream_user, host, 'federation')
+        if not cert_config:
+            # could not get certs
+            return False
+        else:
+            upstream_servers[host]['certificates'] = cert_config
+        _log.info(f"Federation setup completed for {host}")
+
     federation_config['federation-upstream'] = upstream_servers
     write_to_config_file(federation_config_file, federation_config)
 
