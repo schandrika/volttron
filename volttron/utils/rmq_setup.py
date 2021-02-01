@@ -827,7 +827,7 @@ def _create_rabbitmq_config(rmq_config, setup_type, verbose=False):
         # if option was all then config_opts would be not null
         # if this was called with just setup_type = federation, load existing
         # config so that we don't overwrite existing federation configs
-        prompt_upstream_servers(rmq_config.volttron_home)
+        success = prompt_upstream_servers(rmq_config.volttron_home)
     if setup_type in ['shovel', 'all']:
         # if option was all then config_opts would be not null
         # if this was called with just setup_type = shovel, load existing
@@ -1066,7 +1066,7 @@ def _prompt_csr_request(rmq_user, host, type, verbose=False):
 
         remote_addr = prompt_response(prompt, default=remote_https_address)
         parsed_address = urlparse(remote_addr)
-        if parsed_address.scheme in ('https',):
+        if parsed_address.scheme not in ('https',):
             raise IOError(f"Remote web interface is not valid: {parsed_address}. Please check and try again")
 
         # request CSR from remote host
