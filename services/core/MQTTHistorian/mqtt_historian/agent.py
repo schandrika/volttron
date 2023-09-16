@@ -1,68 +1,49 @@
 # -*- coding: utf-8 -*- {{{
 # vim: set fenc=utf-8 ft=python sw=4 ts=4 sts=4 et:
-
-# Copyright (c) 2016, Battelle Memorial Institute
-# All rights reserved.
 #
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions
-# are met:
+# Copyright 2020, Battelle Memorial Institute.
 #
-# 1. Redistributions of source code must retain the above copyright
-#    notice, this list of conditions and the following disclaimer.
-# 2. Redistributions in binary form must reproduce the above copyright
-#    notice, this list of conditions and the following disclaimer in
-#    the documentation and/or other materials provided with the
-#    distribution.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+# http://www.apache.org/licenses/LICENSE-2.0
 #
-# The views and conclusions contained in the software and documentation
-# are those of the authors and should not be interpreted as representing
-# official policies, either expressed or implied, of the FreeBSD
-# Project.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 #
-# This material was prepared as an account of work sponsored by an
-# agency of the United States Government.  Neither the United States
-# Government nor the United States Department of Energy, nor Battelle,
-# nor any of their employees, nor any jurisdiction or organization that
-# has cooperated in the development of these materials, makes any
-# warranty, express or implied, or assumes any legal liability or
-# responsibility for the accuracy, completeness, or usefulness or any
-# information, apparatus, product, software, or process disclosed, or
-# represents that its use would not infringe privately owned rights.
-#
-# Reference herein to any specific commercial product, process, or
-# service by trade name, trademark, manufacturer, or otherwise does not
-# necessarily constitute or imply its endorsement, recommendation, or
+# This material was prepared as an account of work sponsored by an agency of
+# the United States Government. Neither the United States Government nor the
+# United States Department of Energy, nor Battelle, nor any of their
+# employees, nor any jurisdiction or organization that has cooperated in the
+# development of these materials, makes any warranty, express or
+# implied, or assumes any legal liability or responsibility for the accuracy,
+# completeness, or usefulness or any information, apparatus, product,
+# software, or process disclosed, or represents that its use would not infringe
+# privately owned rights. Reference herein to any specific commercial product,
+# process, or service by trade name, trademark, manufacturer, or otherwise
+# does not necessarily constitute or imply its endorsement, recommendation, or
 # favoring by the United States Government or any agency thereof, or
-# Battelle Memorial Institute. The views and opinions of authors
-# expressed herein do not necessarily state or reflect those of the
+# Battelle Memorial Institute. The views and opinions of authors expressed
+# herein do not necessarily state or reflect those of the
 # United States Government or any agency thereof.
 #
-# PACIFIC NORTHWEST NATIONAL LABORATORY
-# operated by BATTELLE for the UNITED STATES DEPARTMENT OF ENERGY
+# PACIFIC NORTHWEST NATIONAL LABORATORY operated by
+# BATTELLE for the UNITED STATES DEPARTMENT OF ENERGY
 # under Contract DE-AC05-76RL01830
 # }}}
-from __future__ import absolute_import, print_function
+
 
 import datetime
 import logging
 import sys
 import time
-import gevent
 
-from volttron.platform.agent.base_historian import BaseHistorian, add_timing_data_to_header
+from volttron.platform import jsonapi
+from volttron.platform.agent.base_historian import BaseHistorian
 from volttron.platform.agent import utils
 
 from paho.mqtt.client import MQTTv311, MQTTv31
@@ -71,32 +52,43 @@ import paho.mqtt.publish as publish
 
 utils.setup_logging()
 _log = logging.getLogger(__name__)
-__version__ = '0.1'
+__version__ = '0.2'
+
+
+def historian(config_path, **kwargs):
+    if isinstance(config_path, dict):
+        config_dict = config_path
+    else:
+        config_dict = utils.load_config(config_path)
+
+    connection = config_dict.get('connection', None)
+    assert connection is not None
+
+    utils.update_kwargs_with_config(kwargs, config_dict)
+
+    return MQTTHistorian(**kwargs)
 
 
 class MQTTHistorian(BaseHistorian):
-    """This historian publishes data to MQTT.
+    """
+    This historian publishes data to a MQTT Broker.
     """
 
-    def __init__(self, config_path, **kwargs):
-        config = utils.load_config(config_path)
-
-        backup_storage_limit_gb = config.get('backup_storage_limit_gb', None)
-
+    def __init__(self, connection, **kwargs):
         # We pass every optional parameter to the MQTT library functions so they
         # default to the same values that paho uses as defaults.
-        self.mqtt_qos = config.get('mqtt_qos', 0)
-        self.mqtt_retain = config.get('mqtt_retain', False)
+        self.mqtt_qos = connection.get('mqtt_qos', 0)
+        self.mqtt_retain = connection.get('mqtt_retain', False)
 
-        self.mqtt_hostname = config.get('mqtt_hostname', 'localhost')
-        self.mqtt_port = config.get('mqtt_port', 1883)
-        self.mqtt_client_id = config.get('mqtt_client_id', '')
-        self.mqtt_keepalive = config.get('mqtt_keepalive', 60)
-        self.mqtt_will = config.get('mqtt_will', None)
-        self.mqtt_auth = config.get('mqtt_auth', None)
-        self.mqtt_tls = config.get('mqtt_tls', None)
+        self.mqtt_hostname = connection.get('mqtt_hostname', 'localhost')
+        self.mqtt_port = connection.get('mqtt_port', 1883)
+        self.mqtt_client_id = connection.get('mqtt_client_id', '')
+        self.mqtt_keepalive = connection.get('mqtt_keepalive', 60)
+        self.mqtt_will = connection.get('mqtt_will', None)
+        self.mqtt_auth = connection.get('mqtt_auth', None)
+        self.mqtt_tls = connection.get('mqtt_tls', None)
 
-        protocol = config.get('mqtt_protocol', MQTTv311)
+        protocol = connection.get('mqtt_protocol', MQTTv311)
         if protocol == "MQTTv311":
             protocol = MQTTv311
         elif protocol == "MQTTv31":
@@ -110,18 +102,13 @@ class MQTTHistorian(BaseHistorian):
         # will be available in both threads.
         self._last_error = 0
 
-        super(MQTTHistorian, self).__init__(
-            backup_storage_limit_gb=backup_storage_limit_gb,
-            **kwargs)
+        super(MQTTHistorian, self).__init__(**kwargs)
 
     def timestamp(self):
         return time.mktime(datetime.datetime.now().timetuple())
 
     def publish_to_historian(self, to_publish_list):
-        _log.debug("publish_to_historian number of items: {}"
-                   .format(len(to_publish_list)))
-        current_time = self.timestamp()
-
+        _log.debug("publish_to_historian number of items: {}".format(len(to_publish_list)))
         if self._last_error:
             # if we failed we need to wait 60 seconds before we go on.
             if self.timestamp() < self._last_error + 60:
@@ -134,7 +121,8 @@ class MQTTHistorian(BaseHistorian):
 
             # Construct payload from data in the publish item.
             # Available fields: 'value', 'headers', and 'meta'
-            payload = x['value']
+            payload = jsonapi.dumps(x['value'])
+            _log.debug(f'payload: {payload}, topic {topic}')
 
             to_send.append({'topic': topic,
                             'payload': payload,
@@ -153,14 +141,16 @@ class MQTTHistorian(BaseHistorian):
                              protocol=self.mqtt_protocol)
             self.report_all_handled()
         except Exception as e:
-            _log.warning("Exception ({}) raised by publish: {}".format(
-                e.__class__.__name__,
-                e.message))
+            _log.warning("Exception ({}) raised by publish: {}".format(e.__class__.__name__, e))
             self._last_error = self.timestamp()
 
 
 def main(argv=sys.argv):
-    utils.vip_main(MQTTHistorian)
+    try:
+        utils.vip_main(historian, version=__version__)
+    except Exception as e:
+        print(e)
+        _log.exception('unhandled exception')
 
 
 if __name__ == '__main__':

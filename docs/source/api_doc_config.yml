@@ -1,0 +1,13 @@
+services:
+    path: services/core
+    agent_excludes:
+        - DNP3Agent
+        - MarketServiceAgent
+        - OpenEISHistorian
+        - ObixHistoryPublish
+        - IEEE2030_5Agent
+    file_excludes:
+        - CrateHistorian/scripts/*
+ops:
+    path: services/ops
+

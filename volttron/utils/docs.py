@@ -5,7 +5,7 @@ doc_inherit decorator
 
 Usage:
 
-class Foo(object):
+class Foo:
     def foo(self):
         "Frobber"
         pass
@@ -21,7 +21,7 @@ Now, Bar.foo.__doc__ == Bar().foo.__doc__ == Foo.foo.__doc__ == "Frobber"
 from functools import wraps
 
 
-class DocInherit(object):
+class DocInherit:
     """
     Docstring inheriting method descriptor
 
@@ -62,7 +62,7 @@ class DocInherit(object):
 
     def use_parent_doc(self, func, source):
         if source is None:
-            raise NameError, ("Can't find '%s' in parents"%self.name)
+            raise NameError("Can't find '%s' in parents"%self.name)
         func.__doc__ = source.__doc__
         return func
 

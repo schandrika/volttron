@@ -1,0 +1,36 @@
+{
+    "interval":300,
+    "global_topic_prefix": "record",
+    "sources":
+    [
+     {
+        "type": "csv",
+        "url": "https://example.com/example",
+        "params": {"period": "currentinterval",
+                   "format": "csv"},
+        "topic": "example/examplecsvdata1",
+        "key": "Key Column",
+        "parse": ["Col1", "Col2"],
+        "user":"username",
+        "password" : "password"
+     },
+     {
+        "type": "csv",
+        "url": "https://example.com/example_flat",
+        "params": {"format": "csv"},
+        "topic": "example/examplecsvdata1",
+        "flatten": true,
+        "parse": ["Col1", "Col2"]
+     },
+     {
+        "type": "json",
+        "url": "https://example.com/api/example1",
+        "params": {"format": "json"},
+        "topic": "example/exampledata1",
+        "path": ["parentobject", "0"],
+        "key": ["Location", "$"],
+        "user":"username",
+        "password" : "password"
+     }
+    ]
+}

@@ -1,12 +1,12 @@
-Master Driver Configuration Examples
+Platform Driver Configuration Examples
 ====================================
 
-This directory contains a complete set of example configurations for the master driver agent. 
+This directory contains a complete set of example configurations for the platform driver agent.
 
 All configurations have been used with real devices on a test network. Most files will have to be adapted
 to your network and devices.
 
-The included ``master-driver.agent`` loads all the drivers in this folder.
+The included ``platform-driver.agent`` loads all the drivers in this folder.
 
 BACnet
 ------
@@ -17,7 +17,7 @@ BACnet
 MODBUS
 ------
 
-- ``modbus1.config`` - Driver configuration.
+- ``modbus.config`` - Driver configuration.
 - ``catalyst371.csv`` - Register configuration for a TWT Catalyst 371.
 
 Fake Devices

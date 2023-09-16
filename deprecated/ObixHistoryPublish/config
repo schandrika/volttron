@@ -1,0 +1,8 @@
+{
+  "url": "http://example.com/obix/histories/EXAMPLE/",
+  "username": "username",
+  "password": "password",
+  "check_interval": 15,
+  "path_prefix": "devices/obix/history/",
+  "register_config": "config://registry_config.csv"
+}

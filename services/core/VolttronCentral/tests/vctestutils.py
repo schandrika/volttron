@@ -1,17 +1,16 @@
 import requests
 
-from zmq.utils import jsonapi
 
-
-class APITester(object):
-    def __init__(self, url, username='admin', password='admin'):
+class APITester:
+    def __init__(self, wrapper, username='admin', password='admin'):
         """
         :param url:string:
             The jsonrpc endpoint for posting data to.
         :param username:
         :param password:
         """
-        self._url = url
+        self._wrapper = wrapper
+        self._url = wrapper.jsonrpc_endpoint
         self._username = username
         self._password = password
 
@@ -29,7 +28,12 @@ class APITester(object):
 
         print('Posting: {}'.format(data))
 
-        r = requests.post(self._url, json=data)
+        if self._wrapper.ssl_auth:
+            r = requests.post(self._url, json=data,
+                              verify=self._wrapper.certsobj.cert_file(self._wrapper.certsobj.root_ca_name))
+        else:
+            r = requests.post(self._url, json=data,
+                              verify=False)
         validate_response(r)
 
         rpcjson = r.json()
@@ -40,8 +44,8 @@ class APITester(object):
 
     def get_auth_token(self):
         return self.do_rpc('get_authorization',
-                               username=self._username,
-                               password=self._password)
+                           username=self._username,
+                           password=self._password)
 
     def inspect(self, platform_uuid, agent_uuid):
         return self.do_rpc('platforms.uuid.{}.agents.uuid.{}.'
@@ -61,6 +65,10 @@ class APITester(object):
     def install_agent(self, platform_uuid, fileargs):
         rpc = 'platforms.uuid.{}.install'.format(platform_uuid)
         return self.do_rpc(rpc, files=[fileargs])
+
+    def remove_agent(self, plataform_uuid, agent_uuid):
+        rpc = 'platforms.uuid.{}.remove_agent'.format(plataform_uuid)
+        return self.do_rpc(rpc, **dict(uuid=agent_uuid))
 
     def list_agents(self, platform_uuid):
         print('Listing agents for platform: {}'.format(platform_uuid))
@@ -91,6 +99,12 @@ class APITester(object):
                       raw=raw)
         return self.do_rpc("get_agent_config", **params)
 
+    def delete_agent_config(self, platform_uuid, agent_identity, config_name):
+        params = dict(platform_uuid=platform_uuid,
+                      agent_identity=agent_identity,
+                      config_name=config_name)
+        return self.do_rpc("delete_agent_config", **params)
+
     def set_setting(self, **params):
         return self.do_rpc("set_setting", **params)
 
@@ -119,4 +133,4 @@ def validate_response(response):
     print('RPCDICT', rpcdict)
     assert rpcdict['jsonrpc'] == '2.0'
     assert rpcdict['id']
-    assert 'error' in rpcdict.keys() or 'result' in rpcdict.keys()
+    assert 'error' in rpcdict or 'result' in rpcdict

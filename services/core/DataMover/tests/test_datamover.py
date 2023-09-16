@@ -1,94 +1,65 @@
 # -*- coding: utf-8 -*- {{{
 # vim: set fenc=utf-8 ft=python sw=4 ts=4 sts=4 et:
-
-# Copyright (c) 2016, Battelle Memorial Institute
-# All rights reserved.
 #
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions
-# are met:
+# Copyright 2020, Battelle Memorial Institute.
 #
-# 1. Redistributions of source code must retain the above copyright
-#    notice, this list of conditions and the following disclaimer.
-# 2. Redistributions in binary form must reproduce the above copyright
-#    notice, this list of conditions and the following disclaimer in
-#    the documentation and/or other materials provided with the
-#    distribution.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+# http://www.apache.org/licenses/LICENSE-2.0
 #
-# The views and conclusions contained in the software and documentation
-# are those of the authors and should not be interpreted as representing
-# official policies, either expressed or implied, of the FreeBSD
-# Project.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 #
-# This material was prepared as an account of work sponsored by an
-# agency of the United States Government.  Neither the United States
-# Government nor the United States Department of Energy, nor Battelle,
-# nor any of their employees, nor any jurisdiction or organization that
-# has cooperated in the development of these materials, makes any
-# warranty, express or implied, or assumes any legal liability or
-# responsibility for the accuracy, completeness, or usefulness or any
-# information, apparatus, product, software, or process disclosed, or
-# represents that its use would not infringe privately owned rights.
-#
-# Reference herein to any specific commercial product, process, or
-# service by trade name, trademark, manufacturer, or otherwise does not
-# necessarily constitute or imply its endorsement, recommendation, or
+# This material was prepared as an account of work sponsored by an agency of
+# the United States Government. Neither the United States Government nor the
+# United States Department of Energy, nor Battelle, nor any of their
+# employees, nor any jurisdiction or organization that has cooperated in the
+# development of these materials, makes any warranty, express or
+# implied, or assumes any legal liability or responsibility for the accuracy,
+# completeness, or usefulness or any information, apparatus, product,
+# software, or process disclosed, or represents that its use would not infringe
+# privately owned rights. Reference herein to any specific commercial product,
+# process, or service by trade name, trademark, manufacturer, or otherwise
+# does not necessarily constitute or imply its endorsement, recommendation, or
 # favoring by the United States Government or any agency thereof, or
-# Battelle Memorial Institute. The views and opinions of authors
-# expressed herein do not necessarily state or reflect those of the
+# Battelle Memorial Institute. The views and opinions of authors expressed
+# herein do not necessarily state or reflect those of the
 # United States Government or any agency thereof.
 #
-# PACIFIC NORTHWEST NATIONAL LABORATORY
-# operated by BATTELLE for the UNITED STATES DEPARTMENT OF ENERGY
+# PACIFIC NORTHWEST NATIONAL LABORATORY operated by
+# BATTELLE for the UNITED STATES DEPARTMENT OF ENERGY
 # under Contract DE-AC05-76RL01830
-
 # }}}
-import os
-import random
-import tempfile
-from datetime import datetime, timedelta
 
+import os
+import json
+import random
 import gevent
 import pytest
-from volttron.platform.agent import PublishMixin
+from pytest import approx
+from datetime import datetime
+
+from volttron.platform import get_services_core
+from volttron.platform.agent import utils
 from volttron.platform.messaging import headers as headers_mod
 from volttron.platform.messaging import topics
 from volttron.platform.vip.agent import Agent
-from volttron.platform.auth import AuthEntry, AuthFile
-from volttron.platform.keystore import KeyStore, KnownHostsStore
-from gevent.subprocess import Popen
-import gevent.subprocess as subprocess
-from mock import MagicMock
+from volttron.platform.keystore import KnownHostsStore
+from volttron.platform.messaging.health import STATUS_GOOD
 
-# import types
-
-forwarder_uuid = None
-forwarder_config = {
-
-    "agentid": "forwarder",
+datamover_uuid = None
+datamover_config = {
     "destination-vip": "",
-    "custom_topic_list": [],
-    "services_topic_list": [
-        "devices", "record", "analysis", "actuators", "datalogger"
-    ],
     "topic_replace_list": [
         {"from": "PNNL/BUILDING_1", "to": "PNNL/BUILDING1_ANON"}
     ]
 }
 sqlite_config = {
-    "agentid": "sqlhistorian-sqlite",
     "connection": {
         "type": "sqlite",
         "params": {
@@ -96,44 +67,23 @@ sqlite_config = {
         }
     }
 }
-mysql_config = {
-    "agentid": "sqlhistorian-mysql-1",
-    "identity": "platform.historian",
-    "connection": {
-        "type": "mysql",
-        "params": {
-            "host": "localhost",
-            "port": 3306,
-            "database": "test_historian",
-            "user": "historian",
-            "passwd": "historian"
-        }
-    }
-}
 
 volttron_instance1 = None
 volttron_instance2 = None
 
+
 @pytest.fixture(scope="module")
 def volttron_instances(request, get_volttron_instances):
     global volttron_instance1, volttron_instance2
-    # print "Fixture volttron_instance"
-    # if volttron_instance1 is None:
     volttron_instance1, volttron_instance2 = get_volttron_instances(2)
 
 
 # Fixture for setup and teardown of publish agent
-@pytest.fixture(scope="module",
-                params=['volttron_2', 'volttron_3'])
+@pytest.fixture(scope="module")
 def publish_agent(request, volttron_instances, forwarder):
     global volttron_instance1, volttron_instance2
-    #print "Fixture publish_agent"
     # 1: Start a fake agent to publish to message bus
-    if request.param == 'volttron_2':
-        agent = PublishMixin(
-            volttron_instance1.opts['publish_address'])
-    else:
-        agent = volttron_instance1.build_agent(identity='test-agent')
+    agent = volttron_instance1.build_agent(identity='test-agent')
 
     # 2: add a tear down method to stop sqlhistorian agent and the fake
     # agent that published to message bus
@@ -148,12 +98,10 @@ def publish_agent(request, volttron_instances, forwarder):
 
 @pytest.fixture(scope="module")
 def query_agent(request, volttron_instances, sqlhistorian):
-    # print "Fixture query_agent"
     # 1: Start a fake agent to query the sqlhistorian in volttron_instance2
     agent = volttron_instance2.build_agent()
 
-    # 2: add a tear down method to stop sqlhistorian agent and the fake
-    # agent that published to message bus
+    # 2: add a tear down method to stop sqlhistorian agent and the fake agent that published to message bus
     def stop_agent():
         print("In teardown method of module")
         agent.core.stop()
@@ -164,47 +112,43 @@ def query_agent(request, volttron_instances, sqlhistorian):
 
 @pytest.fixture(scope="module")
 def sqlhistorian(request, volttron_instances):
-    # print "Fixture sqlhistorian"
     global volttron_instance1, volttron_instance2
     global sqlite_config
     # 1: Install historian agent
     # Install and start sqlhistorian agent in instance2
     agent_uuid = volttron_instance2.install_agent(
-        agent_dir="services/core/SQLHistorian",
+        agent_dir=get_services_core("SQLHistorian"),
         config_file=sqlite_config,
         start=True,
         vip_identity='platform.historian')
     print("sqlite historian agent id: ", agent_uuid)
 
 
-
 @pytest.fixture(scope="module")
 def forwarder(request, volttron_instances):
-    #print "Fixture forwarder"
     global volttron_instance1, volttron_instance2
-
-    global forwarder_uuid, forwarder_config
+    global datamover_uuid, datamover_config
     # 1. Update destination address in forwarder configuration
 
     volttron_instance1.allow_all_connections()
     volttron_instance2.allow_all_connections()
 
-    forwarder_config["destination-vip"] = volttron_instance2.vip_address
+    datamover_config["destination-vip"] = volttron_instance2.vip_address
 
     known_hosts_file = os.path.join(volttron_instance1.volttron_home, 'known_hosts')
     known_hosts = KnownHostsStore(known_hosts_file)
     known_hosts.add(volttron_instance2.vip_address, volttron_instance2.serverkey)
 
     # setup destination address to include keys
-    forwarder_config["destination-serverkey"] = volttron_instance2.serverkey
+    datamover_config["destination-serverkey"] = volttron_instance2.serverkey
 
     # 1: Install historian agent
     # Install and start sqlhistorian agent in instance2
-    forwarder_uuid = volttron_instance1.install_agent(
-        agent_dir="services/core/DataMover",
-        config_file=forwarder_config,
+    datamover_uuid = volttron_instance1.install_agent(
+        agent_dir=get_services_core("DataMover"),
+        config_file=datamover_config,
         start=True)
-    print("forwarder agent id: ", forwarder_uuid)
+    print("forwarder agent id: ", datamover_uuid)
 
 
 def publish(publish_agent, topic, header, message):
@@ -216,6 +160,7 @@ def publish(publish_agent, topic, header, message):
     else:
         publish_agent.publish_json(topic, header, message)
 
+
 @pytest.mark.historian
 @pytest.mark.forwarder
 def test_devices_topic(publish_agent, query_agent):
@@ -224,12 +169,10 @@ def test_devices_topic(publish_agent, query_agent):
     another instance. Test if topic name substitutions happened.
     Publish to 'devices/PNNL/BUILDING_1/Device/all' in volttron_instance1 and query
     for topic 'devices/PNNL/BUILDING1_ANON/Device/all' in volttron_instance2
-
     :param publish_agent: Fake agent used to publish messages to bus in
     volttron_instance1. Calling this fixture makes sure all the dependant
     fixtures are called to setup and start volttron_instance1 and forwareder
     agent and returns the  instance of fake agent to publish
-
     :param query_agent: Fake agent used to query sqlhistorian in
     volttron_instance2. Calling this fixture makes sure all the dependant
     fixtures are called to setup and start volttron_instance2 and sqlhistorian
@@ -243,12 +186,13 @@ def test_devices_topic(publish_agent, query_agent):
                    {'OutsideAirTemperature': float_meta}]
 
     # Publish messages twice
-    time1 = datetime.utcnow().isoformat(' ')
+    time1 = utils.format_timestamp(datetime.utcnow())
     headers = {
-        headers_mod.DATE: time1
+        headers_mod.DATE: time1,
+        headers_mod.TIMESTAMP: time1
     }
     publish(publish_agent, 'devices/PNNL/BUILDING_1/Device/all', headers, all_message)
-    gevent.sleep(1)
+    gevent.sleep(3)
 
     # Verify topic name replacement by querying the replaced topic name
     # PNNL/BUILDING_1 should be replaced with PNNL/BUILDING1_ANON
@@ -260,10 +204,10 @@ def test_devices_topic(publish_agent, query_agent):
         count=20,
         order="LAST_TO_FIRST").get(timeout=10)
 
-    assert (len(result['values']) == 1)
-    (time1_date, time1_time) = time1.split(" ")
+    assert len(result['values']) == 1
+    (time1_date, time1_time) = time1.split("T")
     assert (result['values'][0][0] == time1_date + 'T' + time1_time + '+00:00')
-    assert (result['values'][0][1] == oat_reading)
+    assert result['values'][0][1] == approx(oat_reading)
     assert set(result['metadata'].items()) == set(float_meta.items())
 
 
@@ -273,12 +217,10 @@ def test_record_topic(publish_agent, query_agent):
     """
     Test if record topic message is getting forwarded to historian running on
     another instance.
-
     :param publish_agent: Fake agent used to publish messages to bus in
     volttron_instance1. Calling this fixture makes sure all the dependant
     fixtures are called to setup and start volttron_instance1 and forwareder
     agent and returns the  instance of fake agent to publish
-
     :param query_agent: Fake agent used to query sqlhistorian in
     volttron_instance2. Calling this fixture makes sure all the dependant
     fixtures are called to setup and start volttron_instance2 and sqlhistorian
@@ -286,28 +228,29 @@ def test_record_topic(publish_agent, query_agent):
     """
     # Create timestamp
     print("\n** test_record_topic **")
-    now = datetime.utcnow().isoformat() + 'Z'
+    now = utils.format_timestamp(datetime.utcnow())
     print("now is ", now)
     headers = {
-        headers_mod.DATE: now
+        headers_mod.DATE: now,
+        headers_mod.TIMESTAMP: now
     }
     # Publish messages
     publish(publish_agent, topics.RECORD, headers, 1)
 
     # sleep so that records gets inserted with unique timestamp
     gevent.sleep(0.5)
-    time2 = datetime.utcnow()
-    time2 = time2.isoformat()
+    time2 = utils.format_timestamp(datetime.utcnow())
     headers = {
-        headers_mod.DATE: time2
+        headers_mod.DATE: time2,
+        headers_mod.TIMESTAMP: time2
     }
     publish(publish_agent, topics.RECORD, headers, 'value0')
     # sleep so that records gets inserted with unique timestamp
     gevent.sleep(0.5)
-    time3 = datetime.utcnow()
-    time3 = time3.isoformat()
+    time3 = utils.format_timestamp(datetime.utcnow())
     headers = {
-        headers_mod.DATE: time3
+        headers_mod.DATE: time3,
+        headers_mod.TIMESTAMP: time3
     }
     publish(publish_agent, topics.RECORD, headers, {'key': 'value'})
     gevent.sleep(0.5)
@@ -330,12 +273,10 @@ def test_record_topic_no_header(publish_agent, query_agent):
     """
     Test if record topic message is getting forwarded to historian running on
     another instance.
-
     :param publish_agent: Fake agent used to publish messages to bus in
     volttron_instance1. Calling this fixture makes sure all the dependant
     fixtures are called to setup and start volttron_instance1 and forwareder
     agent and returns the  instance of fake agent to publish
-
     :param query_agent: Fake agent used to query sqlhistorian in
     volttron_instance2. Calling this fixture makes sure all the dependant
     fixtures are called to setup and start volttron_instance2 and sqlhistorian
@@ -378,12 +319,10 @@ def test_analysis_topic(publish_agent, query_agent):
     'analysis/PNNL/BUILDING_1/Device/MixedAirTemperature' in volttron_instance1 and
     query for topic
     'PNNL/BUILDING1_ANON/Device/MixedAirTemperature' in volttron_instance2
-
     :param publish_agent: Fake agent used to publish messages to bus in
     volttron_instance1. Calling this fixture makes sure all the dependant
     fixtures are called to setup and start volttron_instance1 and forwareder
     agent and returns the  instance of fake agent to publish
-
     :param query_agent: Fake agent used to query sqlhistorian in
     volttron_instance2. Calling this fixture makes sure all the dependant
     fixtures are called to setup and start volttron_instance2 and sqlhistorian
@@ -409,14 +348,14 @@ def test_analysis_topic(publish_agent, query_agent):
                     }]
 
     # Create timestamp
-    now = datetime.utcnow().isoformat() + 'Z'
+    now = utils.format_timestamp(datetime.utcnow())
     print("now is ", now)
     headers = {
-        headers_mod.DATE: now
+        headers_mod.DATE: now,
+        headers_mod.TIMESTAMP: now
     }
     # Publish messages
-    publish(publish_agent, 'analysis/PNNL/BUILDING_1/Device',
-            headers, all_message)
+    publish(publish_agent, 'analysis/PNNL/BUILDING_1/Device', headers, all_message)
     gevent.sleep(0.5)
 
     # pytest.set_trace()
@@ -428,12 +367,12 @@ def test_analysis_topic(publish_agent, query_agent):
         start=now,
         order="LAST_TO_FIRST").get(timeout=10)
     print('Query Result', result)
-    assert (len(result['values']) == 1)
+    assert len(result['values']) == 1
     (now_date, now_time) = now.split("T")
     if now_time[-1:] == 'Z':
         now_time = now_time[:-1]
-    assert (result['values'][0][0] == now_date + 'T' + now_time + '+00:00')
-    assert (result['values'][0][1] == mixed_reading)
+    assert result['values'][0][0] == now_date + 'T' + now_time + '+00:00'
+    assert result['values'][0][1] == approx(mixed_reading)
 
 
 @pytest.mark.historian
@@ -446,12 +385,10 @@ def test_analysis_topic_no_header(publish_agent, query_agent):
     'analysis/PNNL/BUILDING_1/Device/MixedAirTemperature' in volttron_instance1 and
     query for topic
     'PNNL/BUILDING1_ANON/Device/MixedAirTemperature' in volttron_instance2
-
     :param publish_agent: Fake agent used to publish messages to bus in
     volttron_instance1. Calling this fixture makes sure all the dependant
     fixtures are called to setup and start volttron_instance1 and forwareder
     agent and returns the  instance of fake agent to publish
-
     :param query_agent: Fake agent used to query sqlhistorian in
     volttron_instance2. Calling this fixture makes sure all the dependant
     fixtures are called to setup and start volttron_instance2 and sqlhistorian
@@ -481,8 +418,7 @@ def test_analysis_topic_no_header(publish_agent, query_agent):
     print("now is ", now)
 
     # Publish messages
-    publish(publish_agent, 'analysis/PNNL/BUILDING_1/Device',
-            None, all_message)
+    publish(publish_agent, 'analysis/PNNL/BUILDING_1/Device', None, all_message)
     gevent.sleep(0.5)
 
     # pytest.set_trace()
@@ -494,8 +430,8 @@ def test_analysis_topic_no_header(publish_agent, query_agent):
         start=now,
         order="LAST_TO_FIRST").get(timeout=10)
     print('Query Result', result)
-    assert (len(result['values']) == 1)
-    assert (result['values'][0][1] == mixed_reading)
+    assert len(result['values']) == 1
+    assert result['values'][0][1] == approx(mixed_reading)
 
 
 @pytest.mark.historian
@@ -513,19 +449,15 @@ def test_log_topic(publish_agent, query_agent):
      Record should get entered into database with current time at time of
      insertion and should ignore timestamp in header. Topic name
      substitution should have happened
-
-
     :param publish_agent: Fake agent used to publish messages to bus in
     volttron_instance1. Calling this fixture makes sure all the dependant
     fixtures are called to setup and start volttron_instance1 and forwareder
     agent and returns the  instance of fake agent to publish
-
     :param query_agent: Fake agent used to query sqlhistorian in
     volttron_instance2. Calling this fixture makes sure all the dependant
     fixtures are called to setup and start volttron_instance2 and sqlhistorian
     agent and returns the instance of a fake agent to query the historian
     """
-
     print("\n** test_log_topic **")
     # Publish fake data. The format mimics the format used by VOLTTRON drivers.
     # Make some random readings
@@ -537,13 +469,13 @@ def test_log_topic(publish_agent, query_agent):
                                        'Units': 'F',
                                        'tz': 'UTC',
                                        'type': 'float'}}
-    # pytest.set_trace()
     # Create timestamp
-    current_time = datetime.utcnow().isoformat() + 'Z'
+    current_time = utils.format_timestamp(datetime.utcnow())
     print("current_time is ", current_time)
     future_time = '2017-12-02T00:00:00'
     headers = {
-        headers_mod.DATE: future_time
+        headers_mod.DATE: future_time,
+        headers_mod.TIMESTAMP: future_time
     }
     print("time in header is ", future_time)
 
@@ -559,8 +491,8 @@ def test_log_topic(publish_agent, query_agent):
         topic="datalogger/PNNL/BUILDING1_ANON/Device/MixedAirTemperature",
         order="LAST_TO_FIRST").get(timeout=10)
     print('Query Result', result)
-    assert (len(result['values']) == 1)
-    assert (result['values'][0][1] == mixed_reading)
+    assert len(result['values']) == 1
+    assert result['values'][0][1] == approx(mixed_reading)
 
 
 @pytest.mark.historian
@@ -574,18 +506,15 @@ def test_log_topic_no_header(publish_agent, query_agent):
     query for topic
     'datalogger/PNNL/BUILDING1_ANON/Device/MixedAirTemperature' in
     volttron_instance2
-
     :param publish_agent: Fake agent used to publish messages to bus in
     volttron_instance1. Calling this fixture makes sure all the dependant
     fixtures are called to setup and start volttron_instance1 and forwareder
     agent and returns the  instance of fake agent to publish
-
     :param query_agent: Fake agent used to query sqlhistorian in
     volttron_instance2. Calling this fixture makes sure all the dependant
     fixtures are called to setup and start volttron_instance2 and sqlhistorian
     agent and returns the instance of a fake agent to query the historian
     """
-
     print("\n** test_log_topic **")
     # Publish fake data. The format mimics the format used by VOLTTRON drivers.
     # Make some random readings
@@ -610,92 +539,31 @@ def test_log_topic_no_header(publish_agent, query_agent):
         start=current_time,
         order="LAST_TO_FIRST").get(timeout=10)
     print('Query Result', result)
-    assert (len(result['values']) == 1)
-    assert (result['values'][0][1] == mixed_reading)
+    assert len(result['values']) == 1
+    assert result['values'][0][1] == approx(mixed_reading)
 
 
 @pytest.mark.historian
 @pytest.mark.forwarder
-def test_topic_not_forwarded(publish_agent, query_agent):
+def test_old_config(volttron_instances, forwarder):
     """
-    Test if devices topic message is getting forwarded to historian running on
-    another instance. Test if topic name substitutions happened.
-    Publish to topic
-    'datalogger/PNNL/BUILDING_1/Device' in volttron_instance1 and
-    query for topic
-    'datalogger/PNNL/BUILDING1_ANON/Device/MixedAirTemperature' in
-    volttron_instance2
-
-    :param publish_agent: Fake agent used to publish messages to bus in
-    volttron_instance1. Calling this fixture makes sure all the dependant
-    fixtures are called to setup and start volttron_instance1 and forwareder
-    agent and returns the  instance of fake agent to publish
-
-    :param query_agent: Fake agent used to query sqlhistorian in
-    volttron_instance2. Calling this fixture makes sure all the dependant
-    fixtures are called to setup and start volttron_instance2 and sqlhistorian
-    agent and returns the instance of a fake agent to query the historian
-
-    :param volttron_instance1: volttron platform instance in which forward
-    historian is running. It forwards to instance2
-
-    :param volttron_instance2: volttron platform instance in which
-    sqlhistorian is running.
+    Test adding 'agentid' and 'identity' to config. identity should be 
+    supported with "deprecated warning" and "agentid" should get ignored with a
+    warning message
     """
-    print("\n** test_topic_not_forwarded **")
-    global volttron_instance1, volttron_instance2, forwarder_uuid, \
-        forwarder_config
+    print("\n** test_old_config **")
 
-    volttron_instance1.stop_agent(forwarder_uuid)
-    try:
+    global datamover_config
 
-        print("\n** test_topic_not_forwarded **")
-        old_services_topic_list = forwarder_config["services_topic_list"]
-        forwarder_config["services_topic_list"] =["devices", "record"]
+    datamover_config['agentid'] = "test_forwarder_agent_id"
+    datamover_config['identity'] = "second forwarder"
 
-        forwarder_uuid = volttron_instance1.install_agent(
-            agent_dir="services/core/DataMover",
-            config_file=forwarder_config,
-            start=True)
-        gevent.sleep(1)
-        # Publish fake data.
-        # The format mimics the format used by VOLTTRON drivers.
-        # Make some random readings
-        oat_reading = random.uniform(30, 100)
-        mixed_reading = oat_reading + random.uniform(-5, 5)
+    # 1: Install historian agent
+    # Install and start sqlhistorian agent in instance2
+    uuid = volttron_instance1.install_agent(
+        agent_dir=get_services_core("DataMover"),
+        config_file=datamover_config,
+        start=True)
 
-        # Create a message for all points.
-        message = {
-            'MixedAirTemperature': {'Readings': mixed_reading, 'Units': 'F',
-                                    'tz': 'UTC', 'type': 'float'}}
+    print("data_mover agent id: ", uuid)
 
-        # pytest.set_trace()
-        # Create timestamp
-        now = datetime.utcnow().isoformat() + 'Z'
-        print("now is ", now)
-        # now = '2015-12-02T00:00:00'
-
-        # Publish messages
-        publish(publish_agent, "datalogger/PNNL/BUILDING_1/Device", None, message)
-        gevent.sleep(1)
-
-        # Query the historian
-        result = query_agent.vip.rpc.call(
-            'platform.historian',
-            'query',
-            topic="datalogger/PNNL/BUILDING1_ANON/Device/MixedAirTemperature",
-            start=now,
-            count=20,
-            order="LAST_TO_FIRST").get(timeout=10)
-        print('Query Result', result)
-        assert (result == {})
-
-    finally:
-        volttron_instance1.stop_agent(forwarder_uuid)
-        forwarder_config["services_topic_list"] = old_services_topic_list
-        # 1: Install historian agent
-        # Install and start sqlhistorian agent in instance2
-        forwarder_uuid = volttron_instance1.install_agent(
-            agent_dir="services/core/DataMover",
-            config_file=forwarder_config,
-            start=True)

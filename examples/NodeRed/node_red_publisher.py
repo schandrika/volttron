@@ -1,10 +1,9 @@
 from datetime import datetime
+import logging
 import os
 import sys
 
-import json
 import gevent
-import logging
 from gevent.core import callback
 from gevent import Timeout
 
@@ -30,10 +29,11 @@ if  __name__ == '__main__':
             sys.stdout = os.fdopen(stdout.fileno(), 'w', 1)
 
         agent = Agent(identity='NodeRedPublisher', **agent_kwargs)
-        now = datetime.utcnow().isoformat(' ') + 'Z'
+        now = utils.format_timestamp(datetime.utcnow())
         headers = {
             headers_mod.CONTENT_TYPE: headers_mod.CONTENT_TYPE.PLAIN_TEXT,
             headers_mod.DATE: now,
+            headers_mod.TIMESTAMP: now
         }
         event = gevent.event.Event()
         task = gevent.spawn(agent.core.run, event)

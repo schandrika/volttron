@@ -1,0 +1,14 @@
+{
+    "connection": {
+        "type": "mongodb",
+        "params": {
+            "host": "localhost",
+            "port": 27017,
+            "database": "mongo_test",
+            "user": "test",
+            "passwd": "test"
+        }
+    },
+    "table_prefix":"volttron",
+    "historian_vip_identity":"platform.historian"
+}

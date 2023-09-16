@@ -3,22 +3,21 @@ import os
 import tempfile
 import uuid
 
-import gevent
 import pytest
 import requests
 from volttron.platform.agent.known_identities import (
     VOLTTRON_CENTRAL_PLATFORM)
-from volttron.platform.auth import AuthEntry, AuthFile
+from volttron.platform.auth.auth_entry import AuthEntry
+from volttron.platform.auth.auth_file import AuthFile
 from volttron.platform.keystore import KeyStore
 from volttron.platform.messaging.health import STATUS_GOOD
 from volttron.platform.vip.agent import Agent
-from volttron.platform.vip.agent.connection import Connection
 from volttron.platform.web import DiscoveryInfo
-from volttrontesting.utils.core_service_installs import \
+from volttrontesting.utils.agent_additions import \
     add_volttron_central_platform
 from volttrontesting.utils.platformwrapper import PlatformWrapper, \
     start_wrapper_platform
-from zmq.utils import jsonapi
+from volttron.platform import jsonapi
 
 
 def get_new_keypair():
@@ -65,7 +64,7 @@ def values_not_none(keylist, lookup):
     for k in keylist:
         names = k.split('.')
         obj = lookup
-        for i in xrange(len(names)):
+        for i in range(len(names)):
             if i == len(names) - 1:
                 return names[i] in obj and obj[names[i]] is not None
             try:
@@ -80,7 +79,7 @@ def contains_keys(keylist, lookup):
     for k in keylist:
         names = k.split('.')
         obj = lookup
-        for i in xrange(len(names)):
+        for i in range(len(names)):
             if i == len(names) - 1:
                 return names[i] in obj
             try:
@@ -95,8 +94,12 @@ class SimulatedVC(Agent):
     def __init__(self, **kwargs):
         super(SimulatedVC, self).__init__(**kwargs)
         self._functioncalls = {}
+
     def add_method_response(self, method_name, response):
         pass
+
+
+pytest.skip("Deprecated", allow_module_level=True)
 
 
 @pytest.fixture(scope="module")
@@ -125,7 +128,7 @@ def vcp_simulated_vc(request):
 
 
 @pytest.mark.pa
-@pytest.mark.skip(reason="4.1 fixing tests")
+# @pytest.mark.skip(reason="4.1 fixing tests")
 def test_pa_uses_correct_address_hash(vcp_simulated_vc):
     p, vc = vcp_simulated_vc
 
@@ -134,7 +137,7 @@ def test_pa_uses_correct_address_hash(vcp_simulated_vc):
 
 
 @pytest.mark.pa
-@pytest.mark.skip(reason="4.1 fixing tests")
+# @pytest.mark.skip(reason="4.1 fixing tests")
 def test_get_health(vcp_simulated_vc):
     p, vc = vcp_simulated_vc
 
@@ -158,7 +161,7 @@ def test_get_health(vcp_simulated_vc):
     assert health['context'] == 'Let the good-times role'
 
 @pytest.mark.pa
-@pytest.mark.skip(reason="4.1 fixing tests")
+# @pytest.mark.skip(reason="4.1 fixing tests")
 def test_listagents(vcp_simulated_vc):
     try:
         wrapper, vc = vcp_simulated_vc
@@ -182,15 +185,15 @@ def test_listagents(vcp_simulated_vc):
         os.environ.pop('VOLTTRON_HOME')
 
 @pytest.mark.pa
-@pytest.mark.skip(reason="4.1 fixing tests")
-def test_manage_agent(pa_instance):
+# @pytest.mark.skip(reason="4.1 fixing tests")
+def test_manage_agent(vcp_instance):
     """ Test that we can manage a `VolttronCentralPlatform`.
 
     This test is concerned with managing a `VolttronCentralPlatform` from the
     same platform.  Though in principal that should not matter.  We do this
     from a secondary platform in a diffferent integration test.
     """
-    wrapper, agent_uuid = pa_instance
+    wrapper, agent_uuid = vcp_instance
     publickey, secretkey = get_new_keypair()
 
     agent = wrapper.build_agent(
@@ -207,13 +210,13 @@ def test_manage_agent(pa_instance):
 
 
 @pytest.mark.pa
-@pytest.mark.xfail(reason="Need to upgrade")
-def test_can_get_agentlist(pa_instance):
+# @pytest.mark.xfail(reason="Need to upgrade")
+def test_can_get_agentlist(vcp_instance):
     """ Test that we can retrieve an agent list from an agent.
 
     The agent must have the "manager" capability.
     """
-    wrapper, agent_uuid = pa_instance
+    wrapper, agent_uuid = vcp_instance
     publickey, secretkey = get_new_keypair()
 
     agent = wrapper.build_agent(
@@ -239,16 +242,16 @@ def test_can_get_agentlist(pa_instance):
     checkkeys = ('process_id', 'error_code', 'is_running', 'permissions',
                  'health', 'version')
     for k in checkkeys:
-        assert k in retagent.keys()
+        assert k in retagent
 
     # make sure can stop is determined to be false
     assert retagent['permissions']['can_stop'] == False
 
 
 @pytest.mark.pa
-@pytest.mark.skip(reason="4.1 fixing tests")
-def test_agent_can_be_managed(pa_instance):
-    wrapper = pa_instance[0]
+# @pytest.mark.skip(reason="4.1 fixing tests")
+def test_agent_can_be_managed(vcp_instance):
+    wrapper = vcp_instance[0]
     publickey, secretkey = get_new_keypair()
     add_to_auth(wrapper.volttron_home, publickey, capabilities=['managed_by'])
     agent = wrapper.build_agent(
@@ -270,9 +273,9 @@ def test_agent_can_be_managed(pa_instance):
 
 
 @pytest.mark.pa
-@pytest.mark.skip(reason="4.1 fixing tests")
-def test_status_good_when_agent_starts(pa_instance):
-    wrapper = pa_instance[0]
+# @pytest.mark.skip(reason="4.1 fixing tests")
+def test_status_good_when_agent_starts(vcp_instance):
+    wrapper = vcp_instance[0]
     connection = wrapper.build_connection(peer=VOLTTRON_CENTRAL_PLATFORM)
 
     assert connection.is_connected()
