@@ -58,7 +58,7 @@ def test_market_registration_false_reservation_callback():
 def test_market_registration_no_offer_no_aggregate_no_price_callback():
     with pytest.raises(TypeError) as error_info:
         MarketRegistration('test_market', SELLER, None, None, None, None, None)
-    assert 'You must provide either an offer, aggregate, or price callback.' in error_info.value.message
+    assert 'You must provide either an offer, aggregate, or price callback.' in error_info.value.args[0]
 
 @pytest.mark.market
 def test_market_registration_offer_callback():

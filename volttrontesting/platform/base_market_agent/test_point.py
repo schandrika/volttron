@@ -37,7 +37,7 @@ def test_point_init():
 
 @pytest.mark.market
 def test_point_x_none():
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         p = Point(None,8)
 
 @pytest.mark.market
@@ -47,7 +47,7 @@ def test_point_x_negative():
 
 @pytest.mark.market
 def test_point_y_none():
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         p = Point(4,None)
 
 def test_point_y_negative():
